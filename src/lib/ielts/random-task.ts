@@ -71,13 +71,16 @@ function toPoints(labels: string[], columns: number[][]): SeriesPoint[] {
   return labels.map((label, i) => ({ label, values: columns.map((c) => c[i]) }));
 }
 
+// `bias: "up"` marks quantities that realistically only grow over a 20-year
+// period — a chart showing internet access collapsing would teach the wrong
+// report. Everything else may rise, fall or fluctuate.
 const LINE_TOPICS = [
-  { subject: "the percentage of households with internet access", unit: "% of households", min: 4, max: 97, group: "country" },
-  { subject: "the proportion of electricity generated from renewable sources", unit: "% of electricity generated", min: 3, max: 72, group: "country" },
-  { subject: "the number of cars owned per 1,000 people", unit: "cars per 1,000 people", min: 40, max: 640, group: "country" },
+  { subject: "the percentage of households with internet access", unit: "% of households", min: 4, max: 97, group: "country", bias: "up" },
+  { subject: "the proportion of electricity generated from renewable sources", unit: "% of electricity generated", min: 3, max: 72, group: "country", bias: "up" },
+  { subject: "the number of cars owned per 1,000 people", unit: "cars per 1,000 people", min: 40, max: 640, group: "country", bias: "up" },
   { subject: "average annual coffee consumption per person", unit: "kg per person per year", min: 0.4, max: 9.5, group: "country", decimals: 1 },
   { subject: "the unemployment rate among three age groups", unit: "% of the age group", min: 2, max: 24, group: "age", decimals: 1 },
-  { subject: "the number of international students enrolled at university", unit: "students (thousands)", min: 5, max: 210, group: "country" },
+  { subject: "the number of international students enrolled at university", unit: "students (thousands)", min: 5, max: 210, group: "country", bias: "up" },
   { subject: "the average price of a litre of petrol", unit: "US cents per litre", min: 45, max: 185, group: "country" },
 ] as const;
 
@@ -149,6 +152,11 @@ const PROCESSES: { title: string; subject: string; steps: { title: string; detai
 ];
 
 const SHAPES: Shape[] = ["rise", "fall", "peak", "dip", "rise", "fall"];
+/**
+ * Growing quantities only rise. Variety comes from each series' own start,
+ * finish and curve exponent, not from inventing a collapse.
+ */
+const RISING_SHAPES: Shape[] = ["rise"];
 
 function yearLabels(r: () => number, count: number): { labels: string[]; first: number; last: number } {
   const step = pick(r, [5, 5, 10, 2]);
@@ -162,7 +170,8 @@ function makeLine(r: () => number): { visual: Visual; prompt: string; title: str
   const names = topic.group === "age" ? [...AGE_GROUPS] : pickMany(r, COUNTRIES, 3);
   const { labels, first, last } = yearLabels(r, pick(r, [5, 5, 6]));
   const decimals = "decimals" in topic ? topic.decimals : 0;
-  const columns = names.map(() => series(r, pick(r, SHAPES), topic.min, topic.max, labels.length, decimals));
+  const shapes = "bias" in topic && topic.bias === "up" ? RISING_SHAPES : SHAPES;
+  const columns = names.map(() => series(r, pick(r, shapes), topic.min, topic.max, labels.length, decimals));
   return {
     title: topic.subject.replace(/^the /, "").replace(/^average /, "Average ").slice(0, 60),
     prompt: `The line graph below shows ${topic.subject} in ${topic.group === "age" ? "one country" : "three countries"} between ${first} and ${last}.`,
